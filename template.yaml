@@ -1,0 +1,59 @@
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  QRCodeGenerator:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: !Sub
+        - Stack ${AWS::StackName} Function ${ResourceName}
+        - ResourceName: QRCodeGenerator
+      CodeUri: src/QRCodeGenerator
+      Handler: handler.handler
+      Runtime: python3.12
+      MemorySize: 256
+      Timeout: 5
+      Tracing: Active
+      Events:
+        QRCodeAPIGET:
+          Type: Api
+          Properties:
+            Path: /
+            Method: GET
+            RestApiId: !Ref QRCodeAPI
+      Architectures:
+        - arm64
+  QRCodeGeneratorLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${QRCodeGenerator}
+  QRCodeAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub
+        - ${ResourceName} From Stack ${AWS::StackName}
+        - ResourceName: QRCodeAPI
+      StageName: Prod
+      BinaryMediaTypes:
+        - '*/*'
+      DefinitionBody:
+        openapi: '3.0'
+        info: {}
+        paths:
+          /:
+            get:
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                binaryMediaTypes:
+                  - '*/*'
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${QRCodeGenerator.Arn}/invocations
+              responses: {}
+      EndpointConfiguration: REGIONAL
+      TracingEnabled: true
+      Cors:
+        MaxAge: 5
+
+Outputs:
+  APIUrl:
+    Description: API URL
+    Value: !Sub https://${QRCodeAPI}.execute-api.${AWS::Region}.amazonaws.com/Prod/
